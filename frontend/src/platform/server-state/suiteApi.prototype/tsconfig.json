@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["vite/client"],
+    "baseUrl": "../../../..",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/api": ["src/platform/server-state/suiteApi.prototype/model.ts"],
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["model.ts", "callers.ts", "../../../env.d.ts"]
+}

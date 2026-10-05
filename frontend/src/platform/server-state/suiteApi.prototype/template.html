@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suite API — caller prototype</title>
+<style>
+  * { box-sizing: border-box } body { margin: 0; background: #fafafa; color: #171717; font: 14px/1.6 system-ui, sans-serif }
+  main { max-width: 1080px; margin: auto; padding: 40px 24px } h1 { font-size: 30px; letter-spacing: -.03em; margin: 0 } h2 { font-size: 18px; margin: 0 0 12px } p { max-width: 80ch }
+  .muted { color: #666 } .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px } section { padding: 20px; border: 1px solid #ddd; border-radius: 12px; background: white; margin-top: 20px }
+  button { background: white; color: #171717; border: 1px solid #ccc; border-radius: 6px; padding: 8px 12px; font: inherit; cursor: pointer } button:hover { background: #f3f3f3 } button:focus-visible { outline: 2px solid #245ccc; outline-offset: 2px } button:disabled { opacity: .5; cursor: default }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px } .primary, button[aria-selected="true"] { background: #245ccc; color: white; border-color: #245ccc }
+  pre { font: 12px/1.65 ui-monospace, SFMono-Regular, monospace; background: #f5f5f5; padding: 16px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap } code { font-family: ui-monospace, monospace }
+  dl { display: grid; grid-template-columns: 150px 1fr; margin: 0; gap: 6px 12px } dt { color: #666 } dd { margin: 0; overflow-wrap: anywhere } #outcome { min-height: 24px; color: #245ccc } #events { font: 12px/1.8 ui-monospace, monospace; padding-left: 20px }
+  @media(max-width: 760px) { .grid { grid-template-columns: 1fr } main { padding: 24px 16px } }
+</style>
+<main>
+  <h1>Suite API: one reference, two ways to call</h1>
+  <p class="muted">Does the same generated catalog feel natural for reactive pages and one-off work? This throwaway demo uses an in-memory server and real Vue observers. It makes no site requests.</p>
+  <div class="grid">
+    <section><h2>Caller code</h2><div role="tablist" aria-label="Caller examples" class="buttons">
+      <button role="tab" aria-selected="true" data-code="reads">Reads</button><button role="tab" aria-selected="false" data-code="writes">Writes</button><button role="tab" aria-selected="false" data-code="oneoff">One-off calls</button><button role="tab" aria-selected="false" data-code="transfer">Paging &amp; uploads</button>
+    </div><pre id="code" role="tabpanel"></pre></section>
+    <section><h2>Live client and server state</h2><dl id="state"></dl><p id="outcome" role="status" aria-live="polite">Ready.</p></section>
+  </div>
+  <section><h2>Try it</h2><div class="buttons">
+    <button data-action="rename">Rename file</button><button data-action="refuse">Refuse rename</button><button data-action="fresh">Read people from server</button><button data-action="cached">Read cached people</button><button data-action="changePeople">Change people on server</button><button data-action="dedupe">Read people twice together</button><button data-action="page">Next people page</button><button data-action="upload">Upload sample file</button><button data-action="toggle">Enable / disable file read</button><button data-action="dispose">Dispose file observer</button><button data-action="imperative">Rename outside component</button><button data-action="settings">Save WebDAV setting</button><button data-action="visit">Record visit</button><button data-action="reset">Reset demo</button>
+  </div></section>
+  <section><h2>Guided walkthroughs</h2><div role="tablist" aria-label="Walkthroughs" class="buttons">
+    <button role="tab" aria-selected="true" data-scenario="rollback">Refusal and rollback</button><button role="tab" aria-selected="false" data-scenario="freshness">Fresh versus cached</button><button role="tab" aria-selected="false" data-scenario="lifetime">Observer lifetime</button><button role="tab" aria-selected="false" data-scenario="transfer">Paging and transfer</button>
+  </div><p id="scenarioText"></p><button id="step" class="primary">Start walkthrough</button></section>
+  <section><h2>Request trace</h2><ol id="events"></ol></section>
+  <p class="muted">TypeScript uses the current generated Suite, Drive, and Mail shapes. Seven invalid call shapes must fail compilation. This sketch does not prove production auth, real upload protocols, cancellation races, complete policy coverage, or bundle cost.</p>
+</main>
+<script>/* VUE_RUNTIME */</script>
+<script type="module">
+/* PROTOTYPE_MODEL */
+const demo = globalThis.suiteApiPrototype
+const V = demo.Vue
+const selected = V.ref('budget')
+const rootScope = V.effectScope()
+const roots = rootScope.run(() => ({ account: useQuery(api.suite.account.get), inbox: useQuery(api.mail.inbox.summary) }))
+let fileScope, file, rename, transfer, people, lastRead = 'No lookup yet', outcome = 'Ready.', busy = false, disposed = false
+function mountFile() {
+  fileScope = V.effectScope()
+  fileScope.run(() => { file = useQuery(api.drive.nodes.get, () => selected.value ? { node: selected.value } : false) })
+  disposed = false
+}
+function mountActions() { rename = useMutation(api.drive.nodes.rename); transfer = useUpload(api.drive.uploads.transfer); people = useInfiniteQuery(api.suite.people.list, {}) }
+mountFile(); mountActions()
+const examples = {
+  reads: `import { api, useQuery } from '@/api'\n\nconst account = useQuery(api.suite.account.get)\nconst inbox = useQuery(api.mail.inbox.summary)\n\nconst file = useQuery(api.drive.nodes.get, () =>\n  selected.value ? { node: selected.value } : false\n)`,
+  writes: `import { api, useMutation } from '@/api'\n\nconst rename = useMutation(api.drive.nodes.rename)\n\nawait rename.run({ node, title })\n// Failure rejects and also sets rename.error.\n// Owner policies apply automatically (mocked here).\n\nconst save = useMutation(api.drive.settings.save)\nawait save.run({ webdav_enabled: true })`,
+  oneoff: `import { api, client } from '@/api'\n\n// Requests a server result by default.\nconst people = await client.query(\n  api.suite.people.list, { q: text }\n)\n\n// Cache reuse is explicit.\nawait client.query(api.suite.people.list, {}, { cache: 'prefer' })\n\n// Same effects as the reactive mutation.\nawait client.mutation(api.drive.nodes.rename, { node, title })`,
+  transfer: `import { api, useInfiniteQuery, useUpload } from '@/api'\n\nconst people = useInfiniteQuery(api.suite.people.list, { q: text })\nawait people.fetchNext()\n\nconst upload = useUpload(api.drive.uploads.transfer)\nawait upload.run({ parent_node, file })\n// upload.progress is reactive.\n// The owner workflow assembles create/chunk/finish.`,
+}
+function showCode(name) { document.querySelector('#code').textContent = examples[name]; document.querySelectorAll('[data-code]').forEach((el) => el.setAttribute('aria-selected', String(el.dataset.code === name))) }
+showCode('reads')
+const fields = { 'Account': () => roots.account.data?.full_name ?? 'Loading…', 'Mail unread': () => roots.inbox.data?.unread ?? 'Loading…', 'Server file title': () => server.title, 'Observed file title': () => file?.data?.title ?? (disposed ? 'Observer disposed' : file?.isFetching ? 'Loading…' : 'Read disabled'), 'File read pending': () => String(file?.isFetching ?? false), 'Rename pending': () => String(rename.isPending), 'Rename error': () => rename.error?.message ?? 'None', 'Upload progress': () => transfer.progress === null ? 'Not started' : `${transfer.progress}%`, 'People result': () => lastRead, 'People pages': () => people.rows.map((p) => p.full_name).join(', ') || 'Not loaded', 'More people pages': () => String(people.hasNext), 'Active observers': () => String(client.observerCount()), 'Server requests': () => String(server.requests), 'Visit records': () => String(server.visits) }
+for (const label of Object.keys(fields)) { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = label; dd.dataset.field = label; document.querySelector('#state').append(dt, dd) }
+function render() {
+  document.querySelectorAll('[data-field]').forEach((el) => el.textContent = fields[el.dataset.field]())
+  document.querySelector('#outcome').textContent = outcome
+  document.querySelector('#events').replaceChildren(...server.events.slice(0, 16).map((event) => { const li = document.createElement('li'); li.textContent = event; return li }))
+  document.querySelectorAll('[data-action]').forEach((el) => el.disabled = busy && el.dataset.action !== 'reset')
+}
+V.watchEffect(render)
+const actions = {
+  rename: async () => { await rename.run({ node: 'budget', title: server.title === 'Budget.xlsx' ? 'Forecast.xlsx' : 'Budget.xlsx' }); outcome = 'Rename succeeded. Effects scheduled the observed read.' },
+  refuse: async () => { await rename.run({ node: 'budget', title: 'REFUSED' }); outcome = 'This success message must never appear.' },
+  fresh: async () => { const value = await client.query(api.suite.people.list, {}); lastRead = value.rows[0].full_name; outcome = 'Server result received.' },
+  cached: async () => { const value = await client.query(api.suite.people.list, {}, { cache: 'prefer' }); lastRead = value.rows[0].full_name; outcome = 'Explicit cache reuse.' },
+  changePeople: async () => { server.peopleVersion++; outcome = `Server changed to v${server.peopleVersion}. Cached results have not changed.` },
+  dedupe: async () => { await Promise.all([client.query(api.suite.people.list, {}), client.query(api.suite.people.list, {})]); outcome = 'Two simultaneous reads joined one server request.' },
+  page: async () => { await people.fetchNext(); outcome = people.hasNext ? 'First page loaded.' : 'Last page loaded. No more cursor.' },
+  upload: async () => { await transfer.run({ parent_node: 'root', file: new Blob(['sample']) }); outcome = 'Simulated transfer finished.' },
+  toggle: async () => { selected.value = selected.value ? '' : 'budget'; await V.nextTick(); outcome = selected.value ? 'File observer enabled.' : 'File observer disabled.' },
+  dispose: async () => { fileScope.stop(); disposed = true; outcome = 'File observer disposed. Later writes do not refetch it.' },
+  imperative: async () => { await client.mutation(api.drive.nodes.rename, { node: 'budget', title: 'Imperative.xlsx' }); outcome = 'Imperative write used the same policy.' },
+  settings: async () => { await client.mutation(api.drive.settings.save, { webdav_enabled: true }); outcome = 'Settings saved; no local queries refreshed in this fixture.' },
+  visit: async () => { await client.mutation(api.drive.nodes.visit, { node: 'budget' }); outcome = 'Visit recorded; no local queries refreshed in this fixture.' },
+  reset: async () => location.reload(),
+}
+async function perform(name) {
+  if (busy) return
+  busy = true; outcome = 'Working…'; render()
+  try { await actions[name]() } catch (error) { outcome = `Promise rejected: ${error.message.replace(/\.$/, '')}. Success code was skipped.` } finally { busy = false; render() }
+}
+document.querySelectorAll('[data-action]').forEach((el) => el.addEventListener('click', () => perform(el.dataset.action)))
+document.querySelectorAll('[data-code]').forEach((el) => el.addEventListener('click', () => showCode(el.dataset.code)))
+const scenarios = {
+  rollback: { text: 'Watch the temporary REFUSED title, pending state, then rollback and the rejected promise.', steps: ['refuse', 'rename'] },
+  freshness: { text: 'Load people, change only the server, reuse the old cache, then request the current server result.', steps: ['fresh', 'changePeople', 'cached', 'fresh'] },
+  lifetime: { text: 'Dispose the file observer, then write outside a component. The server changes without a file refetch.', steps: ['dispose', 'imperative'] },
+  transfer: { text: 'Load both pages, then watch a transfer finish behind one caller method.', steps: ['page', 'page', 'upload'] },
+}
+let scenario = 'rollback', step = -1
+function selectScenario(name) { scenario = name; step = -1; document.querySelector('#scenarioText').textContent = scenarios[name].text; document.querySelector('#step').textContent = 'Start walkthrough'; document.querySelectorAll('[data-scenario]').forEach((el) => el.setAttribute('aria-selected', String(el.dataset.scenario === name))) }
+selectScenario('rollback')
+document.querySelectorAll('[data-scenario]').forEach((el) => el.addEventListener('click', () => selectScenario(el.dataset.scenario)))
+document.querySelector('#step').addEventListener('click', async () => {
+  if (busy) return
+  if (step < 0) { fileScope.stop(); rootScope.stop(); location.hash = scenario; location.reload(); return }
+  const action = scenarios[scenario].steps[step]; await perform(action); step++
+  document.querySelector('#step').textContent = step < scenarios[scenario].steps.length ? `Next: ${scenarios[scenario].steps[step]}` : 'Restart walkthrough'
+  if (step >= scenarios[scenario].steps.length) step = -1
+})
+if (scenarios[location.hash.slice(1)]) { selectScenario(location.hash.slice(1)); step = 0; document.querySelector('#step').textContent = `First: ${scenarios[scenario].steps[0]}` }
+</script>
+</html>
