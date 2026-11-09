@@ -1,0 +1,88 @@
+name: Suite
+options:
+  bundleIdPrefix: io.frappe
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  # libmediasoupclient and WebRTC, prebuilt for devices and simulators, for native Meet calls.
+  Mediasoup:
+    url: https://github.com/VLprojects/mediasoup-client-swift
+    exactVersion: 0.9.0
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift
+    exactVersion: 16.1.1
+targets:
+  Suite:
+    type: application
+    platform: iOS
+    sources: [Suite]
+    dependencies:
+      - package: Mediasoup
+      - package: SocketIO
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.frappe.suite
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Suite
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Suite uploads the photos and videos you pick to Drive.
+        INFOPLIST_KEY_NSCameraUsageDescription: Suite uses the camera for video in meetings.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Suite uses the microphone for audio in meetings.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: Suite/Info.plist
+      properties:
+        # Lets the simulator reach a bench on this Mac over plain HTTP. A bench picks
+        # its site from the host name, so `<site>.localhost` needs its own exception.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            localhost:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
+        # `suite://meet/<code>` opens what the site's `/meet/<code>` names, until universal links are set up.
+        CFBundleURLTypes:
+          - CFBundleURLName: io.frappe.suite
+            CFBundleURLSchemes: [suite]
+        # A call keeps its audio when the app goes to the background.
+        UIBackgroundModes: [audio]
+  SuiteTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SuiteTests]
+    dependencies:
+      - target: Suite
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: io.frappe.suite.tests
+  SuiteUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [SuiteUITests]
+    dependencies:
+      - target: Suite
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: io.frappe.suite.uitests
+        TEST_TARGET_NAME: Suite
+schemes:
+  Suite:
+    build:
+      targets:
+        Suite: all
+        SuiteTests: [test]
+        SuiteUITests: [test]
+    test:
+      targets: [SuiteTests, SuiteUITests]

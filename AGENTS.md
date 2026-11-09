@@ -11,5 +11,5 @@ Ship tier: prod
 
 ## Context
 
-- Frontend work: `frontend/AGENTS.md`. Python backend work: `suite/AGENTS.md`.
+- Frontend work: `frontend/AGENTS.md`. Python backend work: `suite/AGENTS.md`. iOS app work: `ios/AGENTS.md`.
 - For app behavior changes, read relevant specs under `specs/<app>/`, domain context at `suite/<app>/CONTEXT.md`, and decisions under `suite/<app>/docs/adr/`, where present.

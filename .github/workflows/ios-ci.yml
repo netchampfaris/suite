@@ -1,0 +1,40 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and unit tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      # The UI tests need a running site, so CI runs the unit tests only.
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Suite.xcodeproj \
+            -scheme Suite \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -only-testing:SuiteTests
